@@ -140,12 +140,17 @@ void IRComponent::buttonClicked (Button* buttonThatWasClicked)
                                 _irAgent->getProcessor().getSettings().getImpulseResponseDirectory(),
                                 formatManager.getWildcardForAllFormats(),
                                 true);
-        if (fileChooser.browseForFileToOpen() && fileChooser.getResults().size() == 1)
-        {
-          const File file = fileChooser.getResults().getReference(0);
-          _irAgent->setFile(file, 0);
-          repaint();
-        }
+
+		auto flags = FileBrowserComponent::openMode
+			| FileBrowserComponent::canSelectFiles
+			| FileBrowserComponent::useTreeView;
+
+		fileChooser.launchAsync(flags, [&](const FileChooser& fc) {
+			const File file = fileChooser.getResults().getReference(0);
+			_irAgent->setFile(file, 0);
+			repaint();
+			});
+
         //[/UserButtonCode__loadButton]
     }
     else if (buttonThatWasClicked == _clearButton)

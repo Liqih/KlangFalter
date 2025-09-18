@@ -647,7 +647,7 @@ KlangFalterEditor::KlangFalterEditor (Processor& processor)
 
     //[/UserPreSize]
 
-    setSize(760, 330);
+    setSize(800, 400);
 
 
     //[Constructor] You can add your own custom stuff here..

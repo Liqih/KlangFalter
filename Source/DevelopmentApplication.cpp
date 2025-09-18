@@ -15,13 +15,13 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // ==================================================================================
 
-#include "JuceHeader.h"
+#include <JuceHeader.h>
 
 
 #include "Processor.h"
 #include "UI/KlangFalterEditor.h"
 
-#include <vector>
+//#include <vector>
 
 
 // ==========================================================================
@@ -61,18 +61,37 @@ public:
 
 
   virtual void audioDeviceIOCallback(const float** inputChannelData,
-    int numInputChannels,
-    float** outputChannelData,
-    int numOutputChannels,
-    int numSamples)
+	  int numInputChannels,
+	  float** outputChannelData,
+	  int numOutputChannels,
+	  int numSamples)
   {
-    assert(_buffers);
-    assert(static_cast<size_t>(numInputChannels) <= _numberBuffers);
-    assert(static_cast<size_t>(numOutputChannels) <= _numberBuffers);
-    assert(static_cast<size_t>(numSamples) <= _bufferSize);
+	  assert(_buffers);
+	  assert(static_cast<size_t>(numInputChannels) <= _numberBuffers);
+	  assert(static_cast<size_t>(numOutputChannels) <= _numberBuffers);
+	  assert(static_cast<size_t>(numSamples) <= _bufferSize);
 
-    _audioSourcePlayer.audioDeviceIOCallback(inputChannelData, numInputChannels, _buffers, numOutputChannels, numSamples);
-    _audioProcessorPlayer.audioDeviceIOCallback(const_cast<const float**>(_buffers), numOutputChannels, outputChannelData, numOutputChannels, numSamples);
+
+	  const AudioIODeviceCallbackContext context;
+	 
+	  _audioSourcePlayer.audioDeviceIOCallbackWithContext(
+		  inputChannelData,	//const float* const* inputChannelData,
+		  numInputChannels,   //int totalNumInputChannels,
+		  _buffers,           //float* const* outputChannelData,
+		  numOutputChannels,  //int totalNumOutputChannels,
+		  numSamples,         //int numSamples,
+		  context               //const AudioIODeviceCallbackContext& context) override;
+	  );
+
+	  _audioProcessorPlayer.audioDeviceIOCallbackWithContext(
+		  const_cast<const float**>(_buffers),	//const float* const* inputChannelData,
+		  numInputChannels,   //int totalNumInputChannels,
+		  outputChannelData,   //float* const* outputChannelData,
+		  numOutputChannels,  //int totalNumOutputChannels,
+		  numSamples,         //int numSamples,
+		  context               //const AudioIODeviceCallbackContext& context) override;
+	  );
+
   }
 
 
@@ -125,7 +144,6 @@ private:
   float** _buffers;
 };
 
-
 // =======================================================
 
 
@@ -146,59 +164,63 @@ public:
                             File(),
                             formatManager.getWildcardForAllFormats(),
                             true);
-    if (fileChooser.browseForFileToOpen() && fileChooser.getResults().size() == 1)
-    {
-      const File audioFile = fileChooser.getResults().getReference(0);
-      formatManager.registerBasicFormats();
-      AudioFormatReader* reader = formatManager.createReaderFor(audioFile);
-      if (reader)
-      { 
-        // Audio file
-        _audioFileSource.reset(new AudioFormatReaderSource(reader, true));
 
-        // Audio processor
-        _audioProcessor.reset(createPluginFilter());
-        if (_audioProcessor)
-        {
-          // UI
-          _editor.reset(dynamic_cast<KlangFalterEditor*>(_audioProcessor->createEditor()));
-          if (_editor)
-          {
-            setContentNonOwned(_editor.get(), true);  
-          }
+	auto flags = FileBrowserComponent::openMode
+		| FileBrowserComponent::canSelectFiles
+		| FileBrowserComponent::useTreeView;
 
-          _deviceManager.initialise(2, 2, nullptr, true);
+	fileChooser.launchAsync(flags, [&](const FileChooser& fc) {
+		const File audioFile = fc.getResults().getReference(0);
+		formatManager.registerBasicFormats();
+		AudioFormatReader* reader = formatManager.createReaderFor(audioFile);
+		if(reader)
+		{
+			// Audio file
+			_audioFileSource.reset(new AudioFormatReaderSource(reader, true));
 
-          const AudioIODevice* currentDevice = _deviceManager.getCurrentAudioDevice();
-          if (!currentDevice)
-          {
-            const OwnedArray<AudioIODeviceType>& availableDevices = _deviceManager.getAvailableDeviceTypes();
-            if (availableDevices.size() > 0)
-            {
-              AudioIODeviceType* device = availableDevices[1];
-              if (device)
-              {
-                _deviceManager.setCurrentAudioDeviceType(device->getTypeName(), true);
-              }
-            }
-          }        
-          _audioSourceProcessorPlayer.init(_audioFileSource.get(), _audioProcessor.get());
-          _deviceManager.addAudioCallback(&_audioSourceProcessorPlayer);
+			// Audio processor
+			_audioProcessor.reset(createPluginFilter());
+			if(_audioProcessor)
+			{
+				// UI
+				_editor.reset(dynamic_cast<KlangFalterEditor*>(_audioProcessor->createEditor()));
+				if(_editor)
+				{
+					setContentNonOwned(_editor.get(), true);
+				}
 
-          // Try to reload last session
-          const juce::File workingDirectory = juce::File::getSpecialLocation(juce::File::currentExecutableFile).getParentDirectory();
-          const juce::File sessionFile = workingDirectory.getChildFile("SavedSession.klangfalter");
-          if (sessionFile.existsAsFile())
-          {
-            juce::MemoryBlock sessionData;
-            if (sessionFile.loadFileAsData(sessionData))
-            {
-              _audioProcessor->setStateInformation(sessionData.getData(), sessionData.getSize());
-            }
-          }
-        }
-      }
-    }  
+				_deviceManager.initialise(2, 2, nullptr, true);
+
+				const AudioIODevice* currentDevice = _deviceManager.getCurrentAudioDevice();
+				if(!currentDevice)
+				{
+					const OwnedArray<AudioIODeviceType>& availableDevices = _deviceManager.getAvailableDeviceTypes();
+					if(availableDevices.size() > 0)
+					{
+						AudioIODeviceType* device = availableDevices[1];
+						if(device)
+						{
+							_deviceManager.setCurrentAudioDeviceType(device->getTypeName(), true);
+						}
+					}
+				}
+				_audioSourceProcessorPlayer.init(_audioFileSource.get(), _audioProcessor.get());
+				_deviceManager.addAudioCallback(&_audioSourceProcessorPlayer);
+
+				// Try to reload last session
+				const juce::File workingDirectory = juce::File::getSpecialLocation(juce::File::currentExecutableFile).getParentDirectory();
+				const juce::File sessionFile = workingDirectory.getChildFile("SavedSession.klangfalter");
+				if(sessionFile.existsAsFile())
+				{
+					juce::MemoryBlock sessionData;
+					if(sessionFile.loadFileAsData(sessionData))
+					{
+						_audioProcessor->setStateInformation(sessionData.getData(), sessionData.getSize());
+					}
+				}
+			}
+		}
+		}); // wow!
   }
 
 

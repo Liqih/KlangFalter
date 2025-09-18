@@ -25,7 +25,7 @@ public:
     juce::Thread("ConvolverBackgroundThread"),
     _convolver(convolver)
   {
-    startThread(8); // Use a priority higher than the priority of normal threads
+    startThread(Thread::Priority::highest); // Use a priority higher than the priority of normal threads
   }
   
   
@@ -34,8 +34,7 @@ public:
     signalThreadShouldExit();
     notify();
     stopThread(1000);
-  }
-  
+  }  
   
   virtual void run()
   {
